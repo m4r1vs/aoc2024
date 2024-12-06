@@ -56,11 +56,11 @@ pub fn part_two(input: &str) -> Option<u32> {
             None => -1,
         };
 
-        if last_do > last_dont {
-            do_active = true
-        } else if last_do < last_dont {
-            do_active = false
-        }
+        do_active = match last_do.cmp(&last_dont) {
+            std::cmp::Ordering::Greater => true,
+            std::cmp::Ordering::Less => false,
+            std::cmp::Ordering::Equal => do_active, // Keeps the existing value, if necessary
+        };
     }
 
     Some(product)

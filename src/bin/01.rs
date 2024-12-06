@@ -62,7 +62,7 @@ pub fn part_two(input: &str) -> Option<u32> {
 
     let mut score = 0;
     for number in array.iter() {
-        let occurances = map.get(&number);
+        let occurances = map.get(number);
         if occurances.is_some() {
             score += number * occurances.unwrap();
         }

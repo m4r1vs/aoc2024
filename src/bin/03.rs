@@ -1,5 +1,7 @@
 advent_of_code::solution!(3);
 
+// Take in a string of type ^\d{1,3},\d{1,3}$ and multiply the two digits
+// Return 0 if parsing fails
 fn parse_and_multiply(input: &str) -> u32 {
     let parts: Vec<&str> = input.split(",").collect();
 

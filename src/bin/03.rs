@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 advent_of_code::solution!(3);
 
 // Take in a string of type ^\d{1,3},\d{1,3}$ and multiply the two digits

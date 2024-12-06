@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 advent_of_code::solution!(3);
 
 // Take in a string of type ^\d{1,3},\d{1,3}$ and multiply the two digits
@@ -34,7 +36,36 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let mut product = 0;
+    let mut do_active = true;
+    for might_be_mul in input.split("mul(") {
+        let first_closing_bracket = match might_be_mul.find(")") {
+            Some(x) => x,
+            None => continue,
+        };
+
+        if do_active {
+            product += parse_and_multiply(&might_be_mul[..first_closing_bracket])
+        }
+
+        let last_do: i32 = match might_be_mul.rfind("do()") {
+            Some(x) => x as i32,
+            None => -1,
+        };
+
+        let last_dont: i32 = match might_be_mul.rfind("don't()") {
+            Some(x) => x as i32,
+            None => -1,
+        };
+
+        if last_do > last_dont {
+            do_active = true
+        } else if last_do < last_dont {
+            do_active = false
+        }
+    }
+
+    Some(product)
 }
 
 #[cfg(test)]

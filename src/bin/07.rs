@@ -1,12 +1,6 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, thread};
 
 advent_of_code::solution!(7);
-
-#[derive(Clone, Debug)]
-struct Operation {
-    f: fn(u64, u64) -> u64,
-    // priority: bool // For order of operation (NOT NEEDED)
-}
 
 fn add(first: u64, second: u64) -> u64 {
     first + second
@@ -17,26 +11,19 @@ fn multiply(first: u64, second: u64) -> u64 {
 }
 
 fn concatinate(first: u64, second: u64) -> u64 {
-    let mut multiplier = 1;
-    let mut temp = second;
-
-    while temp > 0 {
-        multiplier *= 10;
-        temp /= 10;
-    }
-
-    first * multiplier + second
+    let num_digits = second.ilog10() + 1;
+    first * 10u64.pow(num_digits) + second
 }
 
 struct CartesianProduct<'a, T: Clone> {
-    set: &'a VecDeque<T>,      // The set to be permutated
+    set: &'a Vec<T>,           // The set to be permutated
     indices: Vec<usize>,       // Internal tracker for combinations
     total_combinations: usize, // Desired combinations
     done: bool,                // Internal flag to mark completion
 }
 
 impl<'a, T: Clone> CartesianProduct<'a, T> {
-    fn new(set: &'a VecDeque<T>, n: usize) -> Self {
+    fn new(set: &'a Vec<T>, n: usize) -> Self {
         if n == 0 || set.is_empty() {
             return Self {
                 set,
@@ -56,7 +43,7 @@ impl<'a, T: Clone> CartesianProduct<'a, T> {
 }
 
 impl<'a, T: Clone> Iterator for CartesianProduct<'a, T> {
-    type Item = VecDeque<T>;
+    type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
@@ -80,97 +67,22 @@ impl<'a, T: Clone> Iterator for CartesianProduct<'a, T> {
     }
 }
 
-fn true_of_desired_calculatable(
-    desired: u64,
-    nums: VecDeque<u64>,
-    operations: &VecDeque<Operation>,
-) -> bool {
-    let combinations = CartesianProduct::new(&operations, nums.len() - 1);
+fn is_solvable(desired: u64, nums: &VecDeque<u64>, operations: &Vec<fn(u64, u64) -> u64>) -> bool {
+    let combinations = CartesianProduct::new(operations, nums.len() - 1);
 
     for combination in combinations {
         let mut tmp_result = nums.clone();
 
-        let comb_iterator = combination.iter();
-
-        for o in comb_iterator {
+        for op in combination.iter() {
             let (x, y) = (
                 tmp_result.pop_front().unwrap(),
                 tmp_result.pop_front().unwrap(),
             );
 
-            tmp_result.push_front((o.f)(x, y));
+            tmp_result.push_front((*op)(x, y));
         }
 
-        // Always calced from left to right, so this stuff is NOT needed lol:
-        // while {
-        //     match comb_iterator.next() {
-        //         Some(x) => {
-        //             o = x;
-        //             true
-        //         }
-        //         None => false,
-        //     }
-        // } {
-        //     let (x, y) = (
-        //         tmp_result.pop_front().unwrap(),
-        //         tmp_result.pop_front().unwrap(),
-        //     );
-
-        //     tmp_result.push_front((o.f)(x, y));
-
-        //
-        // let current_is_last = i + 1 == combination.len();
-        // let next_has_priority = !current_is_last && combination[i + 1].priority;
-        // println!(
-        //     "{} {} {} = {}",
-        //     x,
-        //     if o.priority { "*" } else { "+" },
-        //     y,
-        //     (o.f)(x, y)
-        // );
-
-        // if o.priority || current_is_last || !next_has_priority {
-        //     let (x, y) = (
-        //         tmp_result.pop_front().unwrap(),
-        //         tmp_result.pop_front().unwrap(),
-        //     );
-
-        //     print!(
-        //         "{} {} {} = {}",
-        //         x,
-        //         if o.priority { "*" } else { "+" },
-        //         y,
-        //         (o.f)(x, y)
-        //     );
-
-        //     tmp_result.push_front((o.f)(x, y));
-        // } else {
-        //     let first = tmp_result.pop_front().unwrap();
-        //     let (_, o2) = comb_iterator.next().unwrap();
-        //     let (x, y) = (
-        //         tmp_result.pop_front().unwrap(),
-        //         tmp_result.pop_front().unwrap(),
-        //     );
-
-        //     print!(
-        //         "{} {} ({} {} {}) = {}",
-        //         first,
-        //         if o.priority { "*" } else { "+" },
-        //         x,
-        //         if o2.priority { "*" } else { "+" },
-        //         y,
-        //         (o.f)(first, (o2.f)(x, y))
-        //     );
-
-        //     tmp_result.push_front((o.f)(first, (o2.f)(x, y)));
-        // }
-
-        // println!();
-        // }
-
-        // assert_eq!(tmp_result.len(), 1);
-
-        if tmp_result.get(0).unwrap() == &desired {
+        if tmp_result.front().unwrap() == &desired {
             return true;
         };
     }
@@ -181,13 +93,36 @@ fn true_of_desired_calculatable(
 pub fn part_one(input: &str) -> Option<u64> {
     let number_map = parse_input(input);
 
-    let operations = vec![Operation { f: add }, Operation { f: multiply }];
+    let operations = vec![add, multiply];
 
-    for (desired, nums) in number_map {
-        if true_of_desired_calculatable(desired, nums, &operations) {
-            sum += desired;
-        };
-    }
+    let thread_count = 12;
+    let chunk_size = match number_map.len() % thread_count {
+        0 => number_map.len() / thread_count,
+        left_over => (number_map.len() + thread_count - left_over) / thread_count,
+    };
+
+    let handles: Vec<_> = number_map
+        .chunks(chunk_size)
+        .map(|chunk| {
+            let chunk = chunk.to_vec();
+
+            thread::spawn({
+                let ops = operations.clone();
+                move || {
+                    chunk
+                        .iter()
+                        .filter(|(desired, nums)| is_solvable(*desired, nums, &ops))
+                        .map(|(desired, _)| desired)
+                        .sum::<u64>()
+                }
+            })
+        })
+        .collect();
+
+    let sum: u64 = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .sum();
 
     Some(sum)
 }
@@ -195,17 +130,36 @@ pub fn part_one(input: &str) -> Option<u64> {
 pub fn part_two(input: &str) -> Option<u64> {
     let number_map = parse_input(input);
 
-    let operations = vec![
-        Operation { f: add },
-        Operation { f: multiply },
-        Operation { f: concatinate },
-    ];
+    let operations = vec![add, multiply, concatinate];
 
-    for (desired, nums) in number_map {
-        if true_of_desired_calculatable(desired, nums, &operations) {
-            sum += desired;
-        };
-    }
+    let thread_count = 12;
+    let chunk_size = match number_map.len() % thread_count {
+        0 => number_map.len() / thread_count,
+        left_over => (number_map.len() + thread_count - left_over) / thread_count,
+    };
+
+    let handles: Vec<_> = number_map
+        .chunks(chunk_size)
+        .map(|chunk| {
+            let chunk = chunk.to_vec();
+
+            thread::spawn({
+                let ops = operations.clone();
+                move || {
+                    chunk
+                        .iter()
+                        .filter(|(desired, nums)| is_solvable(*desired, nums, &ops))
+                        .map(|(desired, _)| desired)
+                        .sum::<u64>()
+                }
+            })
+        })
+        .collect();
+
+    let sum: u64 = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .sum();
 
     Some(sum)
 }

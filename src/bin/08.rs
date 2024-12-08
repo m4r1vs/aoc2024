@@ -4,10 +4,14 @@ use std::ops::Deref;
 advent_of_code::solution!(8);
 
 struct BoundingBox {
-    min_x: usize,
     max_x: usize,
-    min_y: usize,
     max_y: usize,
+}
+
+impl BoundingBox {
+    fn is_within_bounds(&self, coords: (usize, usize)) -> bool {
+        coords.0 <= self.max_x && coords.1 <= self.max_y
+    }
 }
 
 // HashSet but insertions outside the bounding box are discarded
@@ -24,23 +28,19 @@ impl BoundedHashSet {
         }
     }
 
+    // Return false only if out of bounds
     fn insert(&mut self, value: (usize, usize)) -> bool {
         let (x, y) = value;
-        if self.is_within_bounds(x, y) {
-            self.set.insert(value)
+        if self.bounding_box.is_within_bounds((x, y)) {
+            self.set.insert(value);
+            true
         } else {
             false
         }
     }
-
-    fn is_within_bounds(&self, x: usize, y: usize) -> bool {
-        x >= self.bounding_box.min_x
-            && x <= self.bounding_box.max_x
-            && y >= self.bounding_box.min_y
-            && y <= self.bounding_box.max_y
-    }
 }
 
+// Use HashSet implementations for all other functions
 impl Deref for BoundedHashSet {
     type Target = HashSet<(usize, usize)>;
 
@@ -52,47 +52,47 @@ impl Deref for BoundedHashSet {
 struct UniqueCombinations<'a, T: Clone> {
     set: &'a Vec<T>,     // The set to generate combinations from
     indices: Vec<usize>, // Internal tracker for combinations
-    comb_length: usize,  // Length of each combination
     done: bool,          // Internal flag to mark completion
 }
 
 impl<'a, T: Clone> UniqueCombinations<'a, T> {
-    fn new(set: &'a Vec<T>, comb_length: usize) -> Self {
-        if comb_length == 0 || set.is_empty() || comb_length > set.len() {
+    fn new(set: &'a Vec<T>) -> Self {
+        if set.is_empty() || 2 > set.len() {
             return Self {
                 set,
                 indices: Vec::new(),
-                comb_length,
                 done: true,
             };
         }
 
         Self {
             set,
-            indices: (0..comb_length).collect(),
-            comb_length,
+            indices: (0..2).collect(),
             done: false,
         }
     }
 }
 
 impl<'a, T: Clone> Iterator for UniqueCombinations<'a, T> {
-    type Item = Vec<T>;
+    type Item = (T, T);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
             return None;
         }
 
-        let current = self.indices.iter().map(|&i| self.set[i].clone()).collect();
+        let current = (
+            self.set[self.indices[0]].clone(),
+            self.set[self.indices[1]].clone(),
+        );
 
-        let mut i = self.comb_length;
+        let mut i = 2;
         while i > 0 {
             i -= 1;
 
-            if self.indices[i] < self.set.len() - (self.comb_length - i) {
+            if self.indices[i] < self.set.len() - (2 - i) {
                 self.indices[i] += 1;
-                for j in i + 1..self.comb_length {
+                for j in i + 1..2 {
                     self.indices[j] = self.indices[j - 1] + 1;
                 }
                 return Some(current);
@@ -104,11 +104,11 @@ impl<'a, T: Clone> Iterator for UniqueCombinations<'a, T> {
     }
 }
 
-fn get_antinodes(coords: Vec<(usize, usize)>) -> ((usize, usize), (usize, usize)) {
-    let (x1, y1) = coords.first().unwrap();
-    let (x2, y2) = coords.get(1).unwrap();
+fn get_antinode(coords: ((usize, usize), (usize, usize))) -> (usize, usize) {
+    let (x1, y1) = coords.0;
+    let (x2, y2) = coords.1;
 
-    ((2 * x2 - x1, 2 * y2 - y1), (2 * x1 - x2, 2 * y1 - y2))
+    (2 * x2 - x1, 2 * y2 - y1)
 }
 
 pub fn part_one(input: &str) -> Option<usize> {
@@ -116,19 +116,42 @@ pub fn part_one(input: &str) -> Option<usize> {
     let mut antinodes = BoundedHashSet::new(bounds);
 
     for coords in antennas.values() {
-        let combinations = UniqueCombinations::new(coords, 2);
+        let combinations = UniqueCombinations::new(coords);
         for combination in combinations {
-            let (a1, a2) = get_antinodes(combination);
-            antinodes.insert(a1);
-            antinodes.insert(a2);
+            antinodes.insert(get_antinode((combination.0, combination.1)));
+            antinodes.insert(get_antinode((combination.1, combination.0)));
         }
     }
 
     Some(antinodes.len())
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-    None
+pub fn part_two(input: &str) -> Option<usize> {
+    let (antennas, bounds) = parse_input(input);
+    let mut antinodes = BoundedHashSet::new(bounds);
+
+    for coords in antennas.values() {
+        let combinations = UniqueCombinations::new(coords);
+        for combination in combinations {
+            // Every antenna with a match is an antinode now
+            antinodes.insert(combination.0);
+            antinodes.insert(combination.1);
+
+            let mut a0 = get_antinode((combination.0, combination.1));
+            let mut prev = combination.1;
+            while antinodes.insert(a0) {
+                (prev, a0) = (a0, get_antinode((prev, a0)));
+            }
+
+            let mut a1 = get_antinode((combination.1, combination.0));
+            let mut prev = combination.0;
+            while antinodes.insert(a1) {
+                (prev, a1) = (a1, get_antinode((prev, a1)));
+            }
+        }
+    }
+
+    Some(antinodes.len())
 }
 
 fn parse_input(input: &str) -> (HashMap<char, Vec<(usize, usize)>>, BoundingBox) {
@@ -151,8 +174,6 @@ fn parse_input(input: &str) -> (HashMap<char, Vec<(usize, usize)>>, BoundingBox)
     (
         map,
         BoundingBox {
-            min_x: 0,
-            min_y: 0,
             max_x: input.find("\n").unwrap() - 1,
             max_y: y - 1,
         },

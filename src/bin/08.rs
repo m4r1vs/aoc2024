@@ -50,27 +50,27 @@ impl Deref for BoundedHashSet {
 }
 
 struct UniqueCombinations<'a, T: Clone> {
-    set: &'a Vec<T>,           // The set to generate combinations from
-    indices: Vec<usize>,       // Internal tracker for combinations
-    total_combinations: usize, // Length of each combination
-    done: bool,                // Internal flag to mark completion
+    set: &'a Vec<T>,     // The set to generate combinations from
+    indices: Vec<usize>, // Internal tracker for combinations
+    comb_length: usize,  // Length of each combination
+    done: bool,          // Internal flag to mark completion
 }
 
 impl<'a, T: Clone> UniqueCombinations<'a, T> {
-    fn new(set: &'a Vec<T>, n: usize) -> Self {
-        if n == 0 || set.is_empty() || n > set.len() {
+    fn new(set: &'a Vec<T>, comb_length: usize) -> Self {
+        if comb_length == 0 || set.is_empty() || comb_length > set.len() {
             return Self {
                 set,
                 indices: Vec::new(),
-                total_combinations: n,
+                comb_length,
                 done: true,
             };
         }
 
         Self {
             set,
-            indices: (0..n).collect(),
-            total_combinations: n,
+            indices: (0..comb_length).collect(),
+            comb_length,
             done: false,
         }
     }
@@ -86,13 +86,13 @@ impl<'a, T: Clone> Iterator for UniqueCombinations<'a, T> {
 
         let current = self.indices.iter().map(|&i| self.set[i].clone()).collect();
 
-        let mut i = self.total_combinations;
+        let mut i = self.comb_length;
         while i > 0 {
             i -= 1;
 
-            if self.indices[i] < self.set.len() - (self.total_combinations - i) {
+            if self.indices[i] < self.set.len() - (self.comb_length - i) {
                 self.indices[i] += 1;
-                for j in i + 1..self.total_combinations {
+                for j in i + 1..self.comb_length {
                     self.indices[j] = self.indices[j - 1] + 1;
                 }
                 return Some(current);

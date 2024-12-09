@@ -42,7 +42,7 @@ impl<'a, T: Clone> CartesianProduct<'a, T> {
     }
 }
 
-impl<'a, T: Clone> Iterator for CartesianProduct<'a, T> {
+impl<T: Clone> Iterator for CartesianProduct<'_, T> {
     type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -73,7 +73,7 @@ impl<'a, T: Clone> UniqueCombinations<'a, T> {
     }
 }
 
-impl<'a, T: Clone> Iterator for UniqueCombinations<'a, T> {
+impl<T: Clone> Iterator for UniqueCombinations<'_, T> {
     type Item = (T, T);
 
     fn next(&mut self) -> Option<Self::Item> {

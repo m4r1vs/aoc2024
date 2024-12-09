@@ -1,6 +1,8 @@
+use std::collections::HashSet;
+
 advent_of_code::solution!(6);
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Hash, Eq, Copy, Clone)]
 enum Direction {
     Up,
     Right,
@@ -16,6 +18,7 @@ enum Facables {
     Bedrock,   // Out of Map
 }
 
+#[derive(Clone)]
 struct Guard {
     x: isize,
     y: isize,
@@ -63,6 +66,7 @@ impl Guard {
     }
 }
 
+#[derive(Clone)]
 struct GuardMap {
     obstacles: Vec<Vec<Facables>>, // true if there is an obstacle
     guard_start_x: usize,
@@ -79,6 +83,15 @@ impl GuardMap {
 
     fn mark_been(&mut self, x: usize, y: usize) {
         self.obstacles[y][x] = Facables::Traversed;
+    }
+
+    fn add_obstacle(&mut self, x: usize, y: usize) -> bool {
+        if self.get(x as isize, y as isize) == &Facables::Bedrock {
+            false
+        } else {
+            self.obstacles[y][x] = Facables::Obstacle;
+            true
+        }
     }
 }
 
@@ -144,7 +157,54 @@ pub fn part_one(input: &str) -> Option<u32> {
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let mut guard = Guard {
+        x: 0,
+        y: 0,
+        facing: Direction::Up,
+        map: GuardMap::from(input),
+    };
+
+    // A little not-so-nice way of getting starting coords. TODO!
+    guard.x = guard.map.guard_start_x as isize;
+    guard.y = guard.map.guard_start_y as isize;
+
+    while *guard.get_element_infront() != Facables::Bedrock {
+        guard.move_self();
+    }
+
+    let mut obstacles = 0;
+
+    for (y, tiles) in guard.clone().map.obstacles.iter().enumerate() {
+        for (x, _) in tiles
+            .iter()
+            .enumerate()
+            .filter(|t| t.1 == &Facables::Traversed)
+        {
+            let mut been_set: HashSet<(isize, isize, Direction)> = HashSet::new();
+
+            guard = Guard {
+                x: 0,
+                y: 0,
+                facing: Direction::Up,
+                map: GuardMap::from(input),
+            };
+
+            guard.x = guard.map.guard_start_x as isize;
+            guard.y = guard.map.guard_start_y as isize;
+
+            guard.map.add_obstacle(x, y);
+
+            while *guard.get_element_infront() != Facables::Bedrock {
+                if !been_set.insert((guard.x, guard.y, guard.facing)) {
+                    obstacles += 1;
+                    break;
+                }
+                guard.move_self();
+            }
+        }
+    }
+
+    Some(obstacles)
 }
 
 #[cfg(test)]

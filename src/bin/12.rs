@@ -1,4 +1,4 @@
-use advent_of_code::{wradd, Grid};
+use advent_of_code::{grid::Grid, wradd};
 
 advent_of_code::solution!(12);
 

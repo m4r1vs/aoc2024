@@ -1,135 +1,164 @@
+use advent_of_code::{wradd, Grid};
+
 advent_of_code::solution!(12);
 
-struct Garden {
-    plants: Vec<Vec<u8>>,
-}
-
-impl Garden {
-    fn get_mut_ptr(&mut self, x: usize, y: usize) -> Option<*mut u8> {
-        self.plants
-            .get_mut(y)
-            .and_then(|row| row.get_mut(x).map(|b| b as *mut u8))
-    }
-}
-
-impl From<&str> for Garden {
-    fn from(input: &str) -> Self {
-        Self {
-            plants: input
-                .lines()
-                .map(str::bytes)
-                .map(Iterator::collect)
-                .collect(),
-        }
-    }
-}
-
-unsafe fn push_new_plants(
-    plant: *mut u8,
-    plant_x: usize,
-    plant_y: usize,
-    garden: &mut Garden,
-    stack: &mut Vec<(*mut u8, (usize, usize))>,
-    inner_stack: &mut Vec<(*mut u8, (usize, usize))>,
-) -> usize {
-    let mut fencing_needed = 0;
-    for (x, y) in [(1, 0), (0, 1), (-1, 0), (0, -1)].map(|(dx, dy)| {
-        (
-            plant_x.wrapping_add_signed(dx),
-            plant_y.wrapping_add_signed(dy),
-        )
-    }) {
-        match garden.get_mut_ptr(x, y) {
-            Some(new_plant) => {
-                // found plant already processed
-                if *new_plant > b'Z' {
-                    // plant already processed and value was different to current
-                    if *new_plant - b'Z' != *plant {
-                        fencing_needed += 1;
-                    }
-                    continue;
-                }
-                if *new_plant != *plant {
-                    // found plant other than the current one, needs to be processed in other
-                    // iteration
-                    fencing_needed += 1;
-                    stack.push((new_plant, (x, y)));
-                    continue;
-                }
-                if new_plant != plant {
-                    // found plant same as current one
-                    // but not the one we started at, needs to be processed in current iteration
-                    inner_stack.push((new_plant, (x, y)));
-                    continue;
-                }
-            }
-            None => {
-                fencing_needed += 1;
-            }
-        }
-    }
-    fencing_needed
-}
-
 pub fn part_one(input: &str) -> Option<usize> {
-    let mut sum = 0;
-
-    unsafe {
-        let mut garden = Garden::from(input);
-
-        let mut stack: Vec<(*mut u8, (usize, usize))> = Vec::with_capacity(100);
-        let mut inner_stack: Vec<(*mut u8, (usize, usize))> = Vec::with_capacity(200);
-        let mut plant_count = 1;
-
-        stack.push((garden.get_mut_ptr(0, 0).unwrap_unchecked(), (0, 0)));
-
-        while let Some((plant, (mut x, mut y))) = stack.pop() {
-            if *plant > b'Z' {
-                // println!("Plant is already processed. Continue.");
-                continue;
-            }
-
-            // println!("Started processing {} at {}:{}", *plant as char, x, y);
-
-            let mut fencing_needed =
-                push_new_plants(plant, x, y, &mut garden, &mut stack, &mut inner_stack);
-
-            while let Some((new_plant, (newx, newy))) = inner_stack.pop() {
-                if *new_plant > b'Z' {
-                    continue;
-                }
-
-                x = newx;
-                y = newy;
-
-                // println!(
-                //     "New Plant is {} at {}:{}. Fencing needed: {}",
-                //     *new_plant as char, x, y, fencing_needed
-                // );
-
-                plant_count += 1;
-
-                *new_plant += b'Z';
-
-                fencing_needed +=
-                    push_new_plants(plant, x, y, &mut garden, &mut stack, &mut inner_stack);
-            }
-
-            // println!("Found {} occurances of {}", plant_count, *plant as char);
-            // println!("Fencing: {}", fencing_needed);
-
-            sum += fencing_needed * plant_count;
-
-            *plant = 181; // b'Z' * 2 + 1
-            plant_count = 1;
-        }
-    }
-
-    Some(sum)
+    Some(
+        calc_fences_and_corners(
+            &mut Garden {
+                plants: Grid::from(input),
+            },
+            true,
+        )
+        .fences,
+    )
 }
 
 pub fn part_two(input: &str) -> Option<usize> {
-    Some(input.len())
+    Some(
+        calc_fences_and_corners(
+            &mut Garden {
+                plants: Grid::from(input),
+            },
+            false,
+        )
+        .corners,
+    )
+}
+
+struct Garden {
+    plants: Grid<u8>,
+}
+
+/// This is wrapping a custom Grid struct (see lib.rs) with helper functions to mark plants
+/// as visited whilst retaining their values.
+///
+/// It's a little faster to operate on a single grid than having a second one for storing visited
+/// locations. We just do += b'Z' which is at most 180 and can happen only once max.
+impl Garden {
+    /// Return true if the value of the given plant matches the plant at the given coordinates.
+    ///
+    /// It will ignore any marks that might have been set on the internal plant.
+    /// We're assuming that the given plant is either unmarked or the plant we're
+    /// comparing it to is also marked.
+    fn are_plants_equal(&self, x: usize, y: usize, foreign_plant: u8) -> bool {
+        if let Some(own_plant) = self.plants.get(x, y) {
+            if *own_plant == foreign_plant {
+                return true;
+            }
+
+            // safe to not check > b'Z' since it wraps around to a value > 180 anyway
+            if *own_plant - b'Z' == foreign_plant {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Panics if out of range!
+    /// Return true if the plant has been marked visited.
+    fn is_marked(&self, x: usize, y: usize) -> bool {
+        self.plants.get(x, y).map(|p| *p > b'Z').unwrap()
+    }
+
+    /// Mark a plant at given coordinates as visited.
+    /// Make sure to only call it once per plant or else the original value is lost!
+    fn mark(&mut self, x: usize, y: usize) {
+        if let Some(p) = self.plants.get_mut(x, y) {
+            *p += b'Z';
+        }
+    }
+}
+
+struct FencesAndCorners {
+    fences: usize,
+    corners: usize,
+}
+
+fn calc_fences_and_corners(garden: &mut Garden, skip_the_corners: bool) -> FencesAndCorners {
+    let mut plant_queue = Vec::with_capacity(100);
+
+    let mut corners_sum = 0;
+    let mut fences_sum = 0;
+
+    for y in 0..garden.plants.height {
+        for x in 0..garden.plants.width {
+            if garden.is_marked(x, y) {
+                continue;
+            }
+
+            let plant = *garden.plants.get(x, y).unwrap();
+
+            let mut plant_count = 0;
+            let mut corners = 0;
+            let mut fences = 0;
+
+            plant_queue.push((x, y));
+
+            garden.mark(x, y);
+
+            while let Some((x, y)) = plant_queue.pop() {
+                plant_count += 1;
+
+                // Check right, bottom, left and top neighbors
+                for (dx, dy) in [(1, 0), (0, 1), (-1, 0), (0, -1)] {
+                    let (nx, ny) = (wradd!(x, dx), wradd!(y, dy));
+
+                    if garden.are_plants_equal(nx, ny, plant) {
+                        if !garden.is_marked(nx, ny) {
+                            garden.mark(nx, ny);
+                            plant_queue.push((nx, ny));
+                        }
+                    } else {
+                        fences += 1;
+
+                        if !skip_the_corners {
+                            let (rx, ry) = (-dy, dx); // rotate clockwise
+                            let (lx, ly) = (dy, -dx); // rotate counter-clockwise
+
+                            // Check if we have corners (the middle edge is the "current" one).
+                            // The `plant` is marked with "^"
+                            //
+                            //   |_| => 2 corners (both expressions are true)
+                            //    ^
+                            //
+                            //   __| => 1 corner (only the second/clockwise expression is true)
+                            //    ^
+
+                            corners += usize::from(
+                                !garden.are_plants_equal(wradd!(x, lx), wradd!(y, ly), plant)
+                                    || garden.are_plants_equal(
+                                        wradd!(x, lx, dx),
+                                        wradd!(y, ly, dy),
+                                        plant,
+                                    ),
+                            );
+
+                            corners += usize::from(
+                                !garden.are_plants_equal(wradd!(x, rx), wradd!(y, ry), plant)
+                                    || garden.are_plants_equal(
+                                        wradd!(x, rx, dx),
+                                        wradd!(y, ry, dy),
+                                        plant,
+                                    ),
+                            );
+                        }
+                    }
+                }
+            }
+
+            fences_sum += plant_count * fences;
+
+            if !skip_the_corners {
+                corners_sum += plant_count * (corners / 2);
+            }
+        }
+    }
+
+    FencesAndCorners {
+        fences: fences_sum,
+        corners: corners_sum,
+    }
 }
 
 #[cfg(test)]

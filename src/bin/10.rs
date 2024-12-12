@@ -1,37 +1,14 @@
 use std::collections::HashSet;
 
+use advent_of_code::grid::Grid;
+
 advent_of_code::solution!(10);
-
-struct Grid {
-    width: usize,
-    height: usize,
-    content: Vec<Vec<u8>>,
-}
-
-impl Grid {
-    fn get(&self, x: usize, y: usize) -> Option<&u8> {
-        self.content.get(y).and_then(|row| row.get(x))
-    }
-}
-
-impl From<&str> for Grid {
-    fn from(input: &str) -> Self {
-        Self {
-            width: input.find("\n").unwrap(),
-            height: input.lines().count(),
-            content: input
-                .lines()
-                .map(|l| l.trim_end().bytes().map(|b| b - b'0').collect())
-                .collect(),
-        }
-    }
-}
 
 fn get_score(
     start_x: usize,
     start_y: usize,
     current: u8,
-    grid: &Grid,
+    grid: &Grid<u8>,
     visited: &mut Option<&mut HashSet<(usize, usize)>>,
 ) -> usize {
     [(1, 0), (0, 1), (-1, 0), (0, -1)]
@@ -44,7 +21,9 @@ fn get_score(
         })
         .map(|(x, y)| match grid.get(x, y) {
             Some(spot) => {
-                if current == 1 && *spot == 0 && visited.as_mut().map_or(true, |v| v.insert((x, y)))
+                if current == b'1'
+                    && *spot == b'0'
+                    && visited.as_mut().map_or(true, |v| v.insert((x, y)))
                 {
                     return 1;
                 }
@@ -65,8 +44,8 @@ pub fn part_one(input: &str) -> Option<usize> {
 
     for y in 0..grid.height {
         for x in 0..grid.width {
-            if *grid.get(x, y).unwrap() == 9 {
-                sum += get_score(x, y, 9, &grid, &mut Some(&mut visited));
+            if *grid.get(x, y).unwrap() == b'9' {
+                sum += get_score(x, y, b'9', &grid, &mut Some(&mut visited));
                 visited.clear();
             }
         }
@@ -81,8 +60,8 @@ pub fn part_two(input: &str) -> Option<usize> {
 
     for y in 0..grid.height {
         for x in 0..grid.width {
-            if *grid.get(x, y).unwrap() == 9 {
-                sum += get_score(x, y, 9, &grid, &mut None);
+            if *grid.get(x, y).unwrap() == b'9' {
+                sum += get_score(x, y, b'9', &grid, &mut None);
             }
         }
     }

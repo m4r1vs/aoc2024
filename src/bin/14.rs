@@ -139,6 +139,29 @@ pub fn part_one(input: &str) -> Option<usize> {
     )
 }
 
+fn print_tree(input: &str, solution: usize) {
+    let mut area_outside_bathroom: [[bool; WIDTH as usize]; HEIGHT as usize] =
+        [[false; WIDTH as usize]; HEIGHT as usize];
+
+    input
+        .lines()
+        .map(str::bytes)
+        .map(ToiletGuard::from)
+        .for_each(|mut e| {
+            e.tick(solution as isize);
+            area_outside_bathroom[e.y as usize][e.x as usize] = true;
+        });
+
+    println!();
+
+    for row in area_outside_bathroom {
+        for piece in row {
+            print!("{}", if piece { "#" } else { " " });
+        }
+        println!();
+    }
+}
+
 pub fn part_two(input: &str) -> Option<usize> {
     let mut guards: Vec<ToiletGuard> = input
         .lines()

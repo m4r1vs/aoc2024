@@ -1,74 +1,63 @@
 use std::collections::HashMap;
 
-use rbtree::RBTree;
-
 advent_of_code::solution!(1);
 
+/// The Chief Historian is missing! We found two lists of location IDs.
+/// We need to find the difference between them by sorting both lists.
 pub fn part_one(input: &str) -> Option<u32> {
-    let mut tree1: RBTree<u32, bool> = RBTree::new();
-    let mut tree2: RBTree<u32, bool> = RBTree::new();
+    let line_count = input.len() / 14;
 
-    for (i, number) in input
-        .split_whitespace()
-        .filter_map(|s| s.parse::<u32>().ok())
-        .enumerate()
-    {
-        if i % 2 == 0 {
-            tree1.insert(number, false);
-        } else {
-            tree2.insert(number, false);
-        }
-    }
+    let mut left_list: Vec<u32> = Vec::with_capacity(line_count);
+    let mut right_list: Vec<u32> = Vec::with_capacity(line_count);
 
-    assert_eq!(tree1.len(), tree2.len());
+    input.lines().map(parse_input).for_each(|(left, right)| {
+        left_list.push(left);
+        right_list.push(right);
+    });
 
-    let mut total_distance: u32 = 0;
+    left_list.sort_unstable();
+    right_list.sort_unstable();
 
-    let mut tree1_iter = tree1.iter();
-    let mut tree2_iter = tree2.iter();
-    let mut smallest_unhandled_node_t1 = tree1_iter.next();
-
-    while smallest_unhandled_node_t1.is_some() {
-        let (value_t1, _) = smallest_unhandled_node_t1.unwrap(); // guaranteed by while
-        let (value_t2, _) = tree2_iter.next().unwrap(); // guaranteed by equal length
-
-        if value_t1 > value_t2 {
-            total_distance += value_t1 - value_t2;
-        } else {
-            total_distance += value_t2 - value_t1;
-        }
-
-        smallest_unhandled_node_t1 = tree1_iter.next();
-    }
-
-    Some(total_distance)
+    Some(
+        left_list
+            .iter()
+            .zip(right_list)
+            .map(|(left, right)| left.abs_diff(right))
+            .sum(),
+    )
 }
 
+/// The difference is HUGEE!!! Or is it??
+/// Maybe our methods were wrong. Find out how often a number on the left
+/// appears on the right!
 pub fn part_two(input: &str) -> Option<u32> {
-    let mut map: HashMap<u32, u32> = HashMap::new();
-    let mut array: Vec<u32> = Vec::new();
+    let line_count = input.len() / 14;
+    let mut left_list: Vec<u32> = Vec::with_capacity(line_count);
+    let mut right_list: HashMap<u32, u32> = HashMap::with_capacity(line_count);
 
-    for (i, number) in input
-        .split_whitespace()
-        .filter_map(|s| s.parse::<u32>().ok())
-        .enumerate()
-    {
-        if i % 2 == 0 {
-            array.push(number);
-        } else {
-            map.entry(number).and_modify(|v| *v += 1).or_insert(1);
-        }
-    }
+    input.lines().map(parse_input).for_each(|(left, right)| {
+        left_list.push(left);
+        right_list.entry(right).and_modify(|v| *v += 1).or_insert(1);
+    });
 
-    let mut score = 0;
-    for number in array.iter() {
-        let occurances = map.get(number);
-        if occurances.is_some() {
-            score += number * occurances.unwrap();
-        }
-    }
+    Some(
+        left_list
+            .iter()
+            .map(|left| {
+                if let Some(right) = right_list.get(left) {
+                    return left * right;
+                }
+                0
+            })
+            .sum(),
+    )
+}
 
-    Some(score)
+fn parse_input(input: &str) -> (u32, u32) {
+    (
+        input.get(0..5).map(str::parse::<u32>).unwrap().unwrap(),
+        input.get(8..13).map(str::parse::<u32>).unwrap().unwrap(),
+    )
 }
 
 #[cfg(test)]

@@ -1,69 +1,74 @@
 advent_of_code::solution!(3);
 
-// Take in a string of type ^\d{1,3},\d{1,3}$ and multiply the two digits
-// Return 0 if parsing fails
-fn parse_and_multiply(input: &str) -> u32 {
-    let parts: Vec<&str> = input.split(",").collect();
+/// Copied from https://github.com/maneatingape/advent-of-code-rust/blob/main/src/year2024/day03.rs
+///
+/// My first solution using split() is about 20x slower than this custom parser. I wonder if it
+/// could be made even faster..
+fn parse_and_multiply(input: &str, enable_dos_and_donts: bool) -> u32 {
+    let mem = input.as_bytes();
+    let mut i = 0;
+    let mut sum = 0;
+    let mut enabled = true;
 
-    if parts.len() != 2 {
-        return 0;
+    while i < mem.len() {
+        if mem[i] != b'm' && mem[i] != b'd' {
+            i += 1;
+            continue;
+        }
+
+        if mem[i..].starts_with(b"mul(") {
+            i += 4;
+        } else if mem[i..].starts_with(b"do()") {
+            i += 4;
+            enabled = true;
+        } else if mem[i..].starts_with(b"don't()") {
+            i += 7;
+            enabled = false;
+        } else {
+            i += 1;
+            continue;
+        }
+
+        let mut first = 0;
+
+        while mem[i].is_ascii_digit() {
+            first = 10 * first + (mem[i] - b'0') as u32;
+            i += 1;
+        }
+
+        if mem[i] != b',' {
+            continue;
+        }
+
+        i += 1;
+
+        let mut second = 0;
+
+        while mem[i].is_ascii_digit() {
+            second = 10 * second + (mem[i] - b'0') as u32;
+            i += 1;
+        }
+
+        if mem[i] != b')' {
+            continue;
+        }
+
+        i += 1;
+
+        if !enable_dos_and_donts || enabled {
+            sum += first * second;
+        }
     }
 
-    let left = parts[0].trim().parse::<u32>();
-    let right = parts[1].trim().parse::<u32>();
-
-    if let (Ok(l), Ok(r)) = (left, right) {
-        l * r
-    } else {
-        0
-    }
+    sum
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
-    let mut product = 0;
-    for might_be_mul in input.split("mul(") {
-        let first_closing_bracket = match might_be_mul.find(")") {
-            Some(x) => x,
-            None => continue,
-        };
-
-        product += parse_and_multiply(&might_be_mul[..first_closing_bracket])
-    }
-
-    Some(product)
+    Some(parse_and_multiply(input, false))
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    let mut product = 0;
-    let mut do_active = true;
-    for might_be_mul in input.split("mul(") {
-        let first_closing_bracket = match might_be_mul.find(")") {
-            Some(x) => x,
-            None => continue,
-        };
-
-        if do_active {
-            product += parse_and_multiply(&might_be_mul[..first_closing_bracket])
-        }
-
-        let last_do: i32 = match might_be_mul.rfind("do()") {
-            Some(x) => x as i32,
-            None => -1,
-        };
-
-        let last_dont: i32 = match might_be_mul.rfind("don't()") {
-            Some(x) => x as i32,
-            None => -1,
-        };
-
-        do_active = match last_do.cmp(&last_dont) {
-            std::cmp::Ordering::Greater => true,
-            std::cmp::Ordering::Less => false,
-            std::cmp::Ordering::Equal => do_active, // Keeps the existing value, if necessary
-        };
-    }
-
-    Some(product)
+    Some(parse_and_multiply(input, true))
 }
 
 #[cfg(test)]

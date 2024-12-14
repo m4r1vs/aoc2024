@@ -83,9 +83,9 @@ pub fn part_one(input: &str) -> Option<usize> {
             .lines()
             .map(str::bytes)
             .map(BathroomGuardingRobot::from)
-            .map(|mut e| {
-                e.n_ticks(100);
-                (e.x, e.y)
+            .map(|mut guard| {
+                guard.n_ticks(100);
+                (guard.x, guard.y)
             })
             .collect::<Quadrants>()
             .0
@@ -101,6 +101,9 @@ pub fn part_one(input: &str) -> Option<usize> {
 /// For each step, we calculate the average distance from the center. We also keep track
 /// of the tick at which the average distance has been the smallest.
 ///
+/// To fasten it up a little more, we only load and simulate every 8th robot.
+/// Starts to get flaky at every 11th and beyond...
+///
 /// After completing both loops, we now know, at which tick the center-distance was
 /// at a minimum (for x and y each). We can use the CRT to calculate the position in time,
 /// at which both the x-distance and y-distance was the smallest on average.
@@ -114,6 +117,7 @@ pub fn part_two(input: &str) -> Option<usize> {
 
     let mut guards: Vec<BathroomGuardingRobot> = input
         .lines()
+        .step_by(8)
         .map(str::bytes)
         .map(BathroomGuardingRobot::from)
         .collect();
@@ -149,7 +153,7 @@ pub fn part_two(input: &str) -> Option<usize> {
     let result = min_tick_x
         + ((modular_inverse(WIDTH, HEIGHT) * (min_tick_y - min_tick_x)) % HEIGHT) * WIDTH;
 
-    print_robots(input, result);
+    // print_robots(input, result);
 
     Some(result)
 }
@@ -180,6 +184,7 @@ fn modular_inverse(a: usize, m: usize) -> usize {
     x1
 }
 
+#[allow(dead_code)]
 /// Print the position of robots at step n to stdout.
 /// Used to display the Christmas Tree.
 fn print_robots(input: &str, n: usize) {

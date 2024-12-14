@@ -8,16 +8,18 @@ const HEIGHT: usize = 103;
 const Q_WIDTH: usize = WIDTH / 2;
 const Q_HEIGHT: usize = HEIGHT / 2;
 
-struct ToiletGuard {
-    /// current position on x-axis
+/// A robot guarding the bathroom on Easter Bunny Island.
+/// Suspiciously similar to the once at the North Pole.
+struct BathroomGuardingRobot {
+    /// Current position on x-axis
     x: usize,
-    /// current position on y-axis
+    /// Current position on y-axis
     y: usize,
-    /// velocity (x, y)
+    /// Velocity (x, y)
     v: (isize, isize),
 }
 
-impl ToiletGuard {
+impl BathroomGuardingRobot {
     /// Wraps a position value to ensure it stays within the bounds [0, limit).
     #[inline(always)]
     fn _wrap(value: isize, limit: usize) -> usize {
@@ -25,7 +27,7 @@ impl ToiletGuard {
     }
 
     #[inline(always)]
-    fn tick(&mut self, ticks: usize) {
+    fn n_ticks(&mut self, ticks: usize) {
         self.x = Self::_wrap(self.x as isize + self.v.0 * ticks as isize, WIDTH);
         self.y = Self::_wrap(self.y as isize + self.v.1 * ticks as isize, HEIGHT);
     }
@@ -41,7 +43,7 @@ impl ToiletGuard {
     }
 }
 
-/// Stores the amount of guards in each quadrant.
+/// Stores the amount of robots in each quadrant.
 struct Quadrants([usize; 4]);
 
 impl FromIterator<(usize, usize)> for Quadrants {
@@ -80,9 +82,9 @@ pub fn part_one(input: &str) -> Option<usize> {
         input
             .lines()
             .map(str::bytes)
-            .map(ToiletGuard::from)
+            .map(BathroomGuardingRobot::from)
             .map(|mut e| {
-                e.tick(100);
+                e.n_ticks(100);
                 (e.x, e.y)
             })
             .collect::<Quadrants>()
@@ -99,9 +101,9 @@ pub fn part_one(input: &str) -> Option<usize> {
 /// For each step, we calculate the average distance from the center. We also keep track
 /// of the tick at which the average distance has been the smallest.
 ///
-/// After completing both loops, we know know, at which tick the center-distance was
-/// at a minimum and we can use the CRT to calculate the position in time, at which both
-/// the x-distance and y-distance was the smallest on average.
+/// After completing both loops, we now know, at which tick the center-distance was
+/// at a minimum (for x and y each). We can use the CRT to calculate the position in time,
+/// at which both the x-distance and y-distance was the smallest on average.
 ///
 /// That spot in time is the spot in time where we find our Christmas Tree.
 pub fn part_two(input: &str) -> Option<usize> {
@@ -110,10 +112,10 @@ pub fn part_two(input: &str) -> Option<usize> {
     let mut min_tick_x = 0;
     let mut min_tick_y = 0;
 
-    let mut guards: Vec<ToiletGuard> = input
+    let mut guards: Vec<BathroomGuardingRobot> = input
         .lines()
         .map(str::bytes)
-        .map(ToiletGuard::from)
+        .map(BathroomGuardingRobot::from)
         .collect();
 
     for tick in 0..WIDTH {
@@ -123,6 +125,7 @@ pub fn part_two(input: &str) -> Option<usize> {
             guard.tick_x_once();
             avg_d_from_ctr += (guard.x as isize - Q_WIDTH as isize).pow(2) as usize;
         }
+
         if avg_d_from_ctr < current_min_x {
             current_min_x = avg_d_from_ctr;
             min_tick_x = tick + 1;
@@ -136,6 +139,7 @@ pub fn part_two(input: &str) -> Option<usize> {
             guard.tick_y_once();
             avg_d_from_ctr += (guard.y as isize - Q_HEIGHT as isize).pow(2) as usize;
         }
+
         if avg_d_from_ctr < current_min_y {
             current_min_y = avg_d_from_ctr;
             min_tick_y = tick + 1;
@@ -145,13 +149,17 @@ pub fn part_two(input: &str) -> Option<usize> {
     let result = min_tick_x
         + ((modular_inverse(WIDTH, HEIGHT) * (min_tick_y - min_tick_x)) % HEIGHT) * WIDTH;
 
-    print_tree(input, result);
+    print_robots(input, result);
 
     Some(result)
 }
 
+/// Extended Euclidean Algorithm to find modular inverse:
+///
+/// ```
+/// ax ≡ 1 (mod m) // given a and m, return x
+/// ```
 fn modular_inverse(a: usize, m: usize) -> usize {
-    // Extended Euclidean Algorithm to find modular inverse
     let mut m0 = m;
     let mut x0 = 0;
     let mut x1 = 1;
@@ -172,15 +180,17 @@ fn modular_inverse(a: usize, m: usize) -> usize {
     x1
 }
 
-fn print_tree(input: &str, solution: usize) {
+/// Print the position of robots at step n to stdout.
+/// Used to display the Christmas Tree.
+fn print_robots(input: &str, n: usize) {
     let mut area_outside_bathroom: [[bool; WIDTH]; HEIGHT] = [[false; WIDTH]; HEIGHT];
 
     input
         .lines()
         .map(str::bytes)
-        .map(ToiletGuard::from)
+        .map(BathroomGuardingRobot::from)
         .for_each(|mut e| {
-            e.tick(solution);
+            e.n_ticks(n);
             area_outside_bathroom[e.y][e.x] = true;
         });
 
@@ -194,10 +204,12 @@ fn print_tree(input: &str, solution: usize) {
     }
 }
 
-impl From<std::str::Bytes<'_>> for ToiletGuard {
-    /// a line looks like this:
+impl From<std::str::Bytes<'_>> for BathroomGuardingRobot {
+    /// Dirty but fast. A line looks like this:
     ///
+    /// ```
     /// p=X[X],Y[Y] v=[-]X[X],[-]Y[Y]
+    /// ```
     fn from(mut input: std::str::Bytes) -> Self {
         let mut char;
         let mut oom = 0;

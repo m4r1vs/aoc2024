@@ -67,6 +67,16 @@ impl From<(usize, usize, bool)> for Grid<bool> {
     }
 }
 
+impl From<(usize, usize, u8)> for Grid<u8> {
+    fn from((width, height, initial_value): (usize, usize, u8)) -> Self {
+        Grid {
+            width,
+            height,
+            items: vec![initial_value; width * height],
+        }
+    }
+}
+
 impl<T> Index<(usize, usize)> for Grid<T> {
     type Output = T;
 

@@ -1,7 +1,6 @@
-use std::collections::HashSet;
+use advent_of_code::grid::Grid;
 
 advent_of_code::solution!(6);
-
 #[derive(PartialEq, Hash, Eq, Copy, Clone)]
 enum Direction {
     Up,
@@ -15,103 +14,68 @@ enum Facables {
     Obstacle,  // Cannot Move here
     Neuland,   // Guard has not been here
     Traversed, // Been here already
-    Bedrock,   // Out of Map
 }
 
 #[derive(Clone)]
-struct Guard {
-    x: isize,
-    y: isize,
-    facing: Direction,
-    map: GuardMap,
+struct World {
+    obstacles: Grid<Facables>, // true if there is an obstacle
+    guard: Guard,
 }
 
-impl Guard {
-    fn move_self(&mut self) -> u32 {
-        while *self.get_element_infront() == Facables::Obstacle {
-            self.turn_self();
-        }
-
-        (self.x, self.y) = self.simulate_move();
-
-        if *self.map.get(self.x, self.y) == Facables::Neuland {
-            self.map.mark_been(self.x as usize, self.y as usize);
-            return 1;
-        }
-
-        0
-    }
-
-    fn turn_self(&mut self) {
-        self.facing = match self.facing {
-            Direction::Up => Direction::Right,
-            Direction::Right => Direction::Down,
-            Direction::Down => Direction::Left,
-            Direction::Left => Direction::Up,
-        }
-    }
-
-    fn simulate_move(&self) -> (isize, isize) {
-        match self.facing {
-            Direction::Up => (self.x, self.y - 1),
-            Direction::Right => (self.x + 1, self.y),
-            Direction::Down => (self.x, self.y + 1),
-            Direction::Left => (self.x - 1, self.y),
-        }
-    }
-
-    fn get_element_infront(&self) -> &Facables {
-        let (x, y) = self.simulate_move();
-        self.map.get(x, y)
-    }
-}
-
-#[derive(Clone)]
-struct GuardMap {
-    obstacles: Vec<Vec<Facables>>, // true if there is an obstacle
-    guard_start_x: usize,
-    guard_start_y: usize,
-}
-
-impl GuardMap {
-    fn get(&self, x: isize, y: isize) -> &Facables {
-        self.obstacles
-            .get(y as usize)
-            .and_then(|row| row.get(x as usize))
-            .unwrap_or(&Facables::Bedrock)
+impl World {
+    fn get(&self, x: usize, y: usize) -> Option<&Facables> {
+        self.obstacles.get(x, y)
     }
 
     fn mark_been(&mut self, x: usize, y: usize) {
-        self.obstacles[y][x] = Facables::Traversed;
+        if let Some(current) = self.obstacles.get_mut(x, y) {
+            *current = Facables::Traversed;
+        };
     }
 
-    fn add_obstacle(&mut self, x: usize, y: usize) -> bool {
-        if self.get(x as isize, y as isize) == &Facables::Bedrock {
-            false
-        } else {
-            self.obstacles[y][x] = Facables::Obstacle;
-            true
+    fn move_guard(&mut self) -> Option<Facables> {
+        let (x, y) = self.guard.simulate_move();
+
+        if x >= self.obstacles.width || y >= self.obstacles.height {
+            return None;
+        }
+
+        match self.get(x, y) {
+            Some(Facables::Obstacle) => {
+                self.guard.turn_right();
+                self.move_guard()
+            }
+            Some(Facables::Neuland) => {
+                (self.guard.x, self.guard.y) = (x, y);
+                self.mark_been(self.guard.x, self.guard.y);
+                Some(Facables::Neuland)
+            }
+            Some(Facables::Traversed) => {
+                (self.guard.x, self.guard.y) = (x, y);
+                Some(Facables::Traversed)
+            }
+            None => None,
         }
     }
 }
 
-impl From<&str> for GuardMap {
+impl From<&str> for World {
     fn from(input: &str) -> Self {
         let mut x = 0;
-        let mut y = 0;
+        let mut y: isize = -1;
         let mut guard_start_x = 0;
         let mut guard_start_y = 0;
 
-        let obstacles: Vec<Vec<Facables>> = input
+        let elements: Vec<Facables> = input
             .lines()
-            .map(|row| {
+            .flat_map(|line| {
+                y += 1;
                 x = 0;
-                let returned = row
-                    .bytes()
+                line.bytes()
                     .map(|b| {
                         if b == b'^' {
                             guard_start_x = x;
-                            guard_start_y = y;
+                            guard_start_y = y as usize;
                         }
                         x += 1;
                         if b == b'#' {
@@ -120,91 +84,116 @@ impl From<&str> for GuardMap {
                             Facables::Neuland
                         }
                     })
-                    .collect();
-
-                y += 1;
-                returned
+                    .collect::<Vec<_>>()
             })
             .collect();
 
         Self {
-            obstacles,
-            guard_start_y,
-            guard_start_x,
+            obstacles: Grid {
+                items: elements,
+                width: x,
+                height: y as usize,
+            },
+            guard: Guard {
+                x: guard_start_x,
+                y: guard_start_y,
+                facing: Direction::Up,
+            },
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Guard {
+    x: usize,
+    y: usize,
+    facing: Direction,
+}
+
+impl Guard {
+    fn turn_right(&mut self) {
+        self.facing = match self.facing {
+            Direction::Up => Direction::Right,
+            Direction::Right => Direction::Down,
+            Direction::Down => Direction::Left,
+            Direction::Left => Direction::Up,
+        }
+    }
+
+    fn simulate_move(&self) -> (usize, usize) {
+        match self.facing {
+            Direction::Up => (self.x, self.y - 1),
+            Direction::Right => (self.x + 1, self.y),
+            Direction::Down => (self.x, self.y + 1),
+            Direction::Left => (self.x - 1, self.y),
         }
     }
 }
 
 pub fn part_one(input: &str) -> Option<u32> {
-    let mut guard = Guard {
-        x: 0,
-        y: 0,
-        facing: Direction::Up,
-        map: GuardMap::from(input),
-    };
-
-    // A little not-so-nice way of getting starting coords. TODO!
-    guard.x = guard.map.guard_start_x as isize;
-    guard.y = guard.map.guard_start_y as isize;
+    let mut world = World::from(input);
 
     let mut distance_traversed = 1;
 
-    while *guard.get_element_infront() != Facables::Bedrock {
-        distance_traversed += guard.move_self();
+    while let Some(cell) = world.move_guard() {
+        if cell == Facables::Neuland {
+            distance_traversed += 1;
+        }
     }
 
     Some(distance_traversed)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    let mut guard = Guard {
-        x: 0,
-        y: 0,
-        facing: Direction::Up,
-        map: GuardMap::from(input),
-    };
+    let mut world = World::from(input);
+    let cloned_world = world.clone();
 
-    // A little not-so-nice way of getting starting coords. TODO!
-    guard.x = guard.map.guard_start_x as isize;
-    guard.y = guard.map.guard_start_y as isize;
-
-    while *guard.get_element_infront() != Facables::Bedrock {
-        guard.move_self();
-    }
+    while world.move_guard().is_some() {}
 
     let mut obstacles = 0;
 
-    for (y, tiles) in guard.clone().map.obstacles.iter().enumerate() {
-        for (x, _) in tiles
-            .iter()
-            .enumerate()
-            .filter(|t| t.1 == &Facables::Traversed)
-        {
-            let mut been_set: HashSet<(isize, isize, Direction)> = HashSet::new();
+    'outer: for (i, _) in world
+        .obstacles
+        .items
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| *t == &Facables::Traversed)
+    {
+        let mut new_world = cloned_world.clone();
+        let mut been: Grid<Option<[Direction; 4]>> = Grid {
+            width: world.obstacles.width,
+            height: world.obstacles.height,
+            items: vec![None; world.obstacles.width * world.obstacles.height],
+        };
 
-            guard = Guard {
-                x: 0,
-                y: 0,
-                facing: Direction::Up,
-                map: GuardMap::from(input),
-            };
-
-            guard.x = guard.map.guard_start_x as isize;
-            guard.y = guard.map.guard_start_y as isize;
-
-            guard.map.add_obstacle(x, y);
-
-            while *guard.get_element_infront() != Facables::Bedrock {
-                if !been_set.insert((guard.x, guard.y, guard.facing)) {
-                    obstacles += 1;
-                    break;
+        new_world.obstacles.items[i] = Facables::Obstacle;
+        while new_world.move_guard().is_some() {
+            let entry = been.get_mut(new_world.guard.x, new_world.guard.y).unwrap();
+            match entry {
+                Some(dir) => {
+                    if dir.contains(&new_world.guard.facing) {
+                        obstacles += 1;
+                        continue 'outer;
+                    }
+                    dir[match_dir_to_idx(new_world.guard.facing)] = new_world.guard.facing;
                 }
-                guard.move_self();
+                None => {
+                    *entry = Some([new_world.guard.facing; 4]);
+                }
             }
         }
     }
 
     Some(obstacles)
+}
+
+fn match_dir_to_idx(direction: Direction) -> usize {
+    match direction {
+        Direction::Up => 0,
+        Direction::Right => 1,
+        Direction::Down => 2,
+        Direction::Left => 3,
+    }
 }
 
 #[cfg(test)]

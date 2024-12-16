@@ -21,11 +21,46 @@ impl Display for Grid<u8> {
     }
 }
 
+impl Grid<u8> {
+    pub fn from_bytes_with_transformation(
+        input: std::str::Bytes,
+        transformation: fn(u8) -> u8,
+    ) -> Self {
+        let mut bytes = Vec::with_capacity(input.len());
+        let mut height = 0;
+
+        input
+            .filter_map(|b| {
+                if b == b'\n' {
+                    height += 1;
+                    return None;
+                } else {
+                    return Some(b);
+                }
+            })
+            .map(transformation)
+            .for_each(|b| bytes.push(b));
+
+        Self {
+            width: bytes.len() / height,
+            height,
+            items: bytes,
+        }
+    }
+}
+
 impl<T: PartialEq> Grid<T> {
     pub fn get_position_of(&self, needle: T) -> Option<(usize, usize)> {
         self.items
             .iter()
             .position(|hay| *hay == needle)
+            .map(|pos| (pos % self.width, pos / self.width))
+    }
+
+    pub fn rget_position_of(&self, needle: T) -> Option<(usize, usize)> {
+        self.items
+            .iter()
+            .rposition(|hay| *hay == needle)
             .map(|pos| (pos % self.width, pos / self.width))
     }
 }
@@ -57,18 +92,8 @@ impl From<&str> for Grid<u8> {
     }
 }
 
-impl From<(usize, usize, bool)> for Grid<bool> {
-    fn from((width, height, initial_value): (usize, usize, bool)) -> Self {
-        Grid {
-            width,
-            height,
-            items: vec![initial_value; width * height],
-        }
-    }
-}
-
-impl From<(usize, usize, u8)> for Grid<u8> {
-    fn from((width, height, initial_value): (usize, usize, u8)) -> Self {
+impl<T: std::clone::Clone> From<(usize, usize, T)> for Grid<T> {
+    fn from((width, height, initial_value): (usize, usize, T)) -> Self {
         Grid {
             width,
             height,
